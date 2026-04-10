@@ -20,6 +20,7 @@ App Flutter para escanear recetas médicas y encontrar medicamentos genéricos e
 flutter run
 flutter analyze
 flutter pub get
+python3 scripts/seed_firestore.py   # poblar Firestore con medicamentos de prueba
 ```
 
 ## Arquitectura
@@ -43,31 +44,30 @@ Clean Architecture parcial:
 
 | Módulo | Archivos clave |
 |--------|---------------|
-| Auth completa (email + Google, sign out, reset password en repo) | `lib/data/repositories/auth_repository.dart`, `lib/providers/auth_provider.dart` |
+| Auth completa (email + Google, sign out) | `lib/data/repositories/auth_repository.dart`, `lib/providers/auth_provider.dart` |
+| Recuperación de contraseña (RF-03) | `lib/presentation/screens/auth/auth_screen.dart` — AlertDialog conectado a `resetPassword()` |
+| Splash screen con routing por authState | `lib/presentation/screens/splash/splash_screen.dart`, `lib/main.dart` |
 | Búsqueda de medicamentos en Firestore (case-insensitive, límite 20) | `lib/data/repositories/medication_repository.dart` |
 | Historial: guardar, listar, eliminar item, limpiar todo | `lib/data/repositories/search_history_repository.dart`, `lib/providers/search_history_provider.dart` |
+| Detalle del medicamento (RF-13, RF-26) | `lib/presentation/screens/medication/medication_detail_screen.dart` |
+| Navegación búsqueda → detalle | `lib/presentation/screens/search/search_screen.dart` |
+| Navegación historial → detalle (con carga por medicationId) | `lib/presentation/screens/history/history_screen.dart` |
 | Onboarding con selector de país | `lib/presentation/screens/splash/onboarding_screen.dart` |
 | Auth screen (login + registro + Google) | `lib/presentation/screens/auth/auth_screen.dart` |
 | Home screen con navegación | `lib/presentation/screens/home/home_screen.dart` |
-| Search screen con resultados en tiempo real | `lib/presentation/screens/search/search_screen.dart` |
 | History screen completa | `lib/presentation/screens/history/history_screen.dart` |
-| Splash screen corregida | `lib/presentation/screens/splash/splash_screen.dart` |
-| Routing en main.dart con authStateProvider | `lib/main.dart` |
 
 ### ⚠️ Parcialmente implementado
 
 | Problema | Ubicación | Qué falta |
 |----------|-----------|-----------|
-| Botón "¿Olvidé mi contraseña?" sin acción | `auth_screen.dart:205` — `onPressed: () {}` | Conectar a `authRepository.resetPassword()` que ya existe |
-| Al tocar medicamento en búsqueda no navega | `search_screen.dart:221` — TODO comentado | Crear `MedicationDetailScreen` y conectar |
-| Al tocar item en historial no navega al detalle | `history_screen.dart` | Mismo que arriba |
-| Botón "Escáner" muestra SnackBar "próximamente" | `home_screen.dart:71-73` | Crear `ScannerScreen` |
+| Botón "Escáner" muestra SnackBar "próximamente" | `home_screen.dart:71-73` | Crear `ScannerScreen` con ML Kit |
+| FAB "Ver farmacias cercanas" en detalle | `medication_detail_screen.dart` | Conectar a `PharmacyMapScreen` cuando exista |
 
 ### ❌ No implementado
 
 | Pantalla / Módulo | RF del SRS | Notas |
 |-------------------|-----------|-------|
-| `MedicationDetailScreen` | RF-13, RF-16, RF-26 | Pantalla de detalle con principio activo, dosis, precios comparados |
 | `ScannerScreen` + pipeline OCR | RF-06 a RF-10 | ML Kit ya instalado |
 | `PharmacyMapScreen` | RF-17 a RF-21 | Google Maps, geolocator ya instalados |
 | `ProfileScreen` | RF-27 a RF-30 | Ver/editar perfil, cambiar país, notificaciones, eliminar cuenta |
@@ -81,9 +81,13 @@ Clean Architecture parcial:
 
 ## Schema de Firestore
 
-### Colecciones actualmente usadas en código
-- `medications` — campo `nameLower` para búsqueda case-insensitive
+### Colecciones activas con datos
+- `medications` — **26 documentos** con medicamentos comunes de LATAM (genéricos + marcas). Campo `nameLower` para búsqueda case-insensitive. Seed en `scripts/seed_firestore.py`
 - `searchHistory` — campos: userId, query, searchedAt, medicationId
+
+### Reglas de seguridad Firestore (configuradas)
+- `medications`: lectura pública, escritura solo autenticados
+- `searchHistory`: lectura/escritura solo al propio usuario (`request.auth.uid == resource.data.userId`)
 
 ### Colecciones requeridas por el SRS (faltan)
 - `usuarios` — uid, nombre, email, pais_id, foto_url, notificaciones
@@ -95,15 +99,29 @@ Clean Architecture parcial:
 
 ---
 
+## Scripts
+
+### `scripts/seed_firestore.py`
+Puebla la colección `medications` con 26 medicamentos comunes de LATAM.
+Requiere `scripts/serviceAccountKey.json` (descargado de Firebase Console → Cuentas de servicio).
+`serviceAccountKey.json` está en `.gitignore` — nunca se sube al repo.
+
+```bash
+pip install firebase-admin --break-system-packages
+python3 scripts/seed_firestore.py
+```
+
+---
+
 ## Slash commands disponibles
 
-Están en `.claude/commands/` (solo locales, no en GitHub):
+Están en `.claude/commands/` (incluidos en el repo):
 
 | Comando | Qué hace |
 |---------|----------|
 | `/status` | Tabla de cobertura SRS vs código actual |
-| `/fix-password-reset` | Conecta botón "¿Olvidé mi contraseña?" |
-| `/implement-details` | Crea MedicationDetailScreen |
+| `/fix-password-reset` | ✅ Ya ejecutado |
+| `/implement-details` | ✅ Ya ejecutado |
 | `/implement-profile` | Crea ProfileScreen completa |
 | `/implement-scanner` | Implementa OCR con ML Kit |
 | `/implement-pharmacy` | Implementa mapa de farmacias |
@@ -111,19 +129,17 @@ Están en `.claude/commands/` (solo locales, no en GitHub):
 | `/fix-tests` | Arregla tests rotos y crea cobertura básica |
 | `/guest-mode` | Implementa modo invitado con anonymous auth |
 
-## Orden de implementación sugerido
-1. `/fix-password-reset` — rápido, RF-03
-2. `/implement-details` — desbloquea flujo búsqueda → detalle
-3. `/update-db-schema` — base para precios y farmacias
-4. `/implement-profile` — RF-27 a RF-30
-5. `/implement-scanner` — RF-06 a RF-10
-6. `/implement-pharmacy` — RF-17 a RF-21
-7. `/guest-mode` — RF-05
-8. `/fix-tests` — al final
+## Orden de implementación restante
+1. `/implement-profile` — RF-27 a RF-30
+2. `/implement-scanner` — RF-06 a RF-10
+3. `/implement-pharmacy` — RF-17 a RF-21
+4. `/guest-mode` — RF-05
+5. `/fix-tests` — al final
 
 ## Configuración Firebase
 - Project ID: `medibot-f2fff`
 - `google-services.json` está en `.gitignore` — NO se sube al repo
+- `scripts/serviceAccountKey.json` está en `.gitignore` — NO se sube al repo
 - Cada desarrollador necesita su propio `google-services.json`
 
 ## Notas importantes
@@ -131,3 +147,4 @@ Están en `.claude/commands/` (solo locales, no en GitHub):
 - `flutter analyze` después de cada cambio importante
 - El `domain/` layer está vacío — no crear use cases a menos que se pida explícitamente
 - Los precios en el modelo `Medication` actual no coinciden con el SRS — el SRS los maneja en colección separada `precios_por_pais`
+- Los warnings de `withOpacity` en varios archivos son pre-existentes, no bloquean compilación
