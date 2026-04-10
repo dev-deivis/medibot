@@ -4,6 +4,7 @@ import '../../../core/app_theme.dart';
 import '../../../providers/medication_provider.dart';
 import '../../../providers/search_history_provider.dart';
 import '../../../data/models/medication.dart';
+import '../medication/medication_detail_screen.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -218,7 +219,12 @@ class _MedicationTile extends ConsumerWidget {
               medication.name,
               medicationId: medication.id,
             );
-        // TODO: Navigate to results/details screen
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MedicationDetailScreen(medication: medication),
+          ),
+        );
       },
       child: Container(
         padding: const EdgeInsets.all(16),

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/app_theme.dart';
 import '../../../providers/search_history_provider.dart';
+import '../../../providers/medication_provider.dart';
 import '../../../data/models/search_history.dart';
+import '../medication/medication_detail_screen.dart';
 import 'package:intl/intl.dart';
 
 class HistoryScreen extends ConsumerWidget {
@@ -112,17 +114,41 @@ class HistoryScreen extends ConsumerWidget {
   }
 }
 
-class _HistoryTile extends StatelessWidget {
+class _HistoryTile extends ConsumerWidget {
   final SearchHistoryItem item;
   final VoidCallback onDelete;
 
   const _HistoryTile({required this.item, required this.onDelete});
 
+  Future<void> _navigateToDetail(BuildContext context, WidgetRef ref) async {
+    final medicationId = item.medicationId;
+    if (medicationId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay detalle disponible para esta búsqueda')),
+      );
+      return;
+    }
+    final medication = await ref.read(medicationDetailProvider(medicationId).future);
+    if (!context.mounted) return;
+    if (medication == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se encontró información del medicamento')),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => MedicationDetailScreen(medication: medication)),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final dateStr = DateFormat('d MMM yyyy, HH:mm', 'es').format(item.searchedAt);
 
-    return Container(
+    return GestureDetector(
+      onTap: () => _navigateToDetail(context, ref),
+      child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -172,6 +198,7 @@ class _HistoryTile extends StatelessWidget {
             onPressed: onDelete,
           ),
         ],
+      ),
       ),
     );
   }

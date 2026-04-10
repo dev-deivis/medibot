@@ -47,4 +47,5 @@ app.*.map.json
 # Firebase config — contiene API keys, no subir a repos públicos
 google-services.json
 GoogleService-Info.plist
+scripts/serviceAccountKey.json
 
