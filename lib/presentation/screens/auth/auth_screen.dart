@@ -31,6 +31,72 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
     super.dispose();
   }
 
+  void _showPasswordResetDialog() {
+    final resetEmailController = TextEditingController(text: _emailController.text.trim());
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Recuperar contraseña'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.',
+              style: TextStyle(color: AppTheme.textSlate500, fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: resetEmailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                hintText: 'ejemplo@correo.com',
+                hintStyle: const TextStyle(color: AppTheme.textSlate400),
+                filled: true,
+                fillColor: AppTheme.backgroundLight,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancelar', style: TextStyle(color: AppTheme.textSlate500)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final email = resetEmailController.text.trim();
+              if (email.isEmpty) return;
+              Navigator.of(dialogContext).pop();
+              try {
+                await ref.read(authRepositoryProvider).resetPassword(email);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Revisa tu correo para restablecer tu contraseña')),
+                  );
+                }
+              } catch (_) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('No encontramos una cuenta con ese correo')),
+                  );
+                }
+              }
+            },
+            child: const Text('Enviar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _handleAuth() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -202,7 +268,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: () {},
+                          onPressed: _showPasswordResetDialog,
                           child: const Text(
                             '¿Olvidé mi contraseña?',
                             style: TextStyle(
